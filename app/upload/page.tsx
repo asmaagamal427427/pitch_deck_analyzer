@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { FileUpload } from '@/components/ui/file-upload';
 import { ArrowLeft, Zap, FileText, Clock, Shield, AlertCircle } from 'lucide-react';
 import { UploadProgress } from '@/types';
-import { parsePdf } from '@/lib/parsers/pdf';
 
 export default function UploadPage() {
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
@@ -43,8 +42,27 @@ export default function UploadPage() {
       // Check file type and parse accordingly
       if (file.type === 'application/pdf') {
         try {
-          const arrayBuffer = await file.arrayBuffer();
-          parsedResult = await parsePdf(arrayBuffer);
+          // Create FormData to send file to API
+          const formData = new FormData();
+          formData.append('file', file);
+
+          // Send to API route for parsing
+          const response = await fetch('/api/parse-pdf', {
+            method: 'POST',
+            body: formData,
+          });
+
+          const result = await response.json();
+
+          if (!response.ok) {
+            throw new Error(result.error || 'Failed to parse PDF');
+          }
+
+          if (!result.success) {
+            throw new Error(result.error || 'PDF parsing failed');
+          }
+
+          parsedResult = result.data;
           
           console.log('PDF Parsing Results:', {
             totalSlides: parsedResult.slides.length,
