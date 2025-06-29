@@ -6,37 +6,120 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileUpload } from '@/components/ui/file-upload';
-import { ArrowLeft, Zap, FileText, Clock, Shield } from 'lucide-react';
+import { ArrowLeft, Zap, FileText, Clock, Shield, AlertCircle } from 'lucide-react';
 import { UploadProgress } from '@/types';
+import { parsePdf } from '@/lib/parsers/pdf';
 
 export default function UploadPage() {
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [parsedData, setParsedData] = useState<any>(null);
   const router = useRouter();
 
   const handleFileSelect = async (file: File) => {
     setSelectedFile(file);
-    await simulateUploadProcess();
+    await processFile(file);
   };
 
-  const simulateUploadProcess = async () => {
-    // Simulate upload process
-    const stages = [
-      { stage: 'uploading' as const, progress: 20, message: 'Uploading your presentation...' },
-      { stage: 'parsing' as const, progress: 50, message: 'Extracting slide content...' },
-      { stage: 'analyzing' as const, progress: 80, message: 'Analyzing with AI...' },
-      { stage: 'complete' as const, progress: 100, message: 'Analysis complete!' }
-    ];
+  const processFile = async (file: File) => {
+    try {
+      // Stage 1: Upload simulation
+      setUploadProgress({
+        stage: 'uploading',
+        progress: 20,
+        message: 'Uploading your presentation...'
+      });
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-    for (const stage of stages) {
-      setUploadProgress(stage);
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Stage 2: Parsing
+      setUploadProgress({
+        stage: 'parsing',
+        progress: 40,
+        message: 'Extracting slide content...'
+      });
+
+      let parsedResult = null;
+
+      // Check file type and parse accordingly
+      if (file.type === 'application/pdf') {
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          parsedResult = await parsePdf(arrayBuffer);
+          
+          console.log('PDF Parsing Results:', {
+            totalSlides: parsedResult.slides.length,
+            totalPages: parsedResult.metadata.totalPages,
+            totalWords: parsedResult.metadata.totalWords,
+            processingTime: parsedResult.metadata.processingTime,
+            slides: parsedResult.slides.map(slide => ({
+              slideNumber: slide.slideNumber,
+              type: slide.type,
+              title: slide.title,
+              wordCount: slide.metadata.wordCount,
+              confidence: slide.metadata.confidence
+            }))
+          });
+
+          setParsedData(parsedResult);
+        } catch (parseError) {
+          console.error('PDF parsing failed:', parseError);
+          setUploadProgress({
+            stage: 'error',
+            progress: 0,
+            message: 'Failed to parse PDF file',
+            error: parseError instanceof Error ? parseError.message : 'Unknown parsing error'
+          });
+          return;
+        }
+      } else if (file.type.includes('presentation') || file.name.endsWith('.pptx') || file.name.endsWith('.ppt')) {
+        // PowerPoint parsing - placeholder for now
+        console.log('PowerPoint file detected - parser not yet implemented');
+        setUploadProgress({
+          stage: 'error',
+          progress: 0,
+          message: 'PowerPoint parsing not yet implemented',
+          error: 'Please use PDF files for now'
+        });
+        return;
+      } else {
+        setUploadProgress({
+          stage: 'error',
+          progress: 0,
+          message: 'Unsupported file type',
+          error: 'Please upload a PDF or PowerPoint file'
+        });
+        return;
+      }
+
+      // Stage 3: Analysis simulation
+      setUploadProgress({
+        stage: 'analyzing',
+        progress: 70,
+        message: 'Analyzing with AI...'
+      });
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Stage 4: Complete
+      setUploadProgress({
+        stage: 'complete',
+        progress: 100,
+        message: 'Analysis complete!'
+      });
+
+      // Redirect to results after completion
+      setTimeout(() => {
+        router.push('/analyze/demo-deck-123');
+      }, 1000);
+
+    } catch (error) {
+      console.error('File processing error:', error);
+      setUploadProgress({
+        stage: 'error',
+        progress: 0,
+        message: 'Processing failed',
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      });
     }
-
-    // Redirect to results after completion
-    setTimeout(() => {
-      router.push('/analyze/demo-deck-123');
-    }, 1000);
   };
 
   const features = [
@@ -110,7 +193,7 @@ export default function UploadPage() {
                   <FileUpload 
                     onFileSelect={handleFileSelect}
                     progress={uploadProgress || undefined}
-                    disabled={!!uploadProgress && uploadProgress.stage !== 'complete'}
+                    disabled={!!uploadProgress && uploadProgress.stage !== 'complete' && uploadProgress.stage !== 'error'}
                   />
                   
                   {selectedFile && !uploadProgress && (
@@ -122,6 +205,42 @@ export default function UploadPage() {
                           <p className="text-sm text-muted-foreground">
                             {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
                           </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Show parsing results for debugging */}
+                  {parsedData && (
+                    <div className="mt-6 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                      <h4 className="font-medium text-green-800 dark:text-green-200 mb-2">
+                        Parsing Successful!
+                      </h4>
+                      <div className="text-sm text-green-700 dark:text-green-300 space-y-1">
+                        <p>• {parsedData.slides.length} slides extracted</p>
+                        <p>• {parsedData.metadata.totalWords} words processed</p>
+                        <p>• Processing time: {parsedData.metadata.processingTime}ms</p>
+                        {parsedData.metadata.title && (
+                          <p>• Document title: {parsedData.metadata.title}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Show error details */}
+                  {uploadProgress?.stage === 'error' && (
+                    <div className="mt-6 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <h4 className="font-medium text-red-800 dark:text-red-200">
+                            {uploadProgress.message}
+                          </h4>
+                          {uploadProgress.error && (
+                            <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                              {uploadProgress.error}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
