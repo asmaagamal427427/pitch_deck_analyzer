@@ -8,9 +8,10 @@ const nextConfig = {
   },
   // Ensure we're not using static export
   trailingSlash: false,
-  // Enable dynamic routes
+  // Enable dynamic routes and server actions
   experimental: {
-    appDir: true
+    appDir: true,
+    serverActions: true
   }
 };
 
