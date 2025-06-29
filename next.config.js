@@ -11,7 +11,9 @@ const nextConfig = {
   // Enable dynamic routes and server actions
   experimental: {
     appDir: true,
-    serverActions: true
+    serverActions: {
+      bodySizeLimit: '10mb'
+    }
   }
 };
 
